@@ -739,7 +739,7 @@ void McCluskey::Reduce(){
 		Temp.erase( Temp.begin(), Temp.end() );																// Reinicia o vetor temporário para uma possível nova iteração do loop
 
 		#ifdef DEBUG
-		this->Print();
+		this->Print();																												// Imprime o resultado final
 		#endif
 	}while( Total );
 
