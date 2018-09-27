@@ -57,12 +57,12 @@ class Binary{
 		void Free();						// Reinicia o valor de cada variável do mintermo com valores nulos
 
 		uint8_t SetName( char _Name );							// Muda o nome do sinal binário
-		void BitCount();														// Conta a quantidade de bits '0' e '1' representados
 		uint8_t Set( uint32_t Pos, uint8_t Val );		// Muda o valor de um determinado bit dentro da representação do sinal (Val = BIT_0, BIT_1 ou BIT_X)
 		uint8_t Get( uint32_t Pos );								// Retorna o valor de um determinado bit dentro da representação (Retorno = BIT_0, BIT_1 ou BIT_X)
-		uint8_t Copy( Binary Bin );									// Copia um sinal binário
-		uint8_t Diference( Binary Bin );						// Calcula quantos bits de diferença há entre dois sinais binários
-		void RemoveDiference( Binary Bin );					// Remove as diferenças entre as representações de dois sinais binários
+		void BitCount();														// Conta a quantidade de bits '0' e '1' representados
+		uint32_t Bits();														// Retorna a quantidade de bits diferentes de Dont Care
+		Binary operator^( Binary Bin );							// Calcula quantos bits de diferença há entre dois sinais binários
+		Binary operator&( Binary Bin );							// Remove as diferenças entre as representações de dois sinais binários
 };
 
 // -------------------------------------------------------------------------- //
@@ -93,8 +93,9 @@ class Minterm{
 		uint8_t Set( char _Name, uint32_t Pos, uint8_t Val );		// Similar à função de cima, porém, atualiza apenas um determinado bit do sinal binário de nome '_Name'
 		Binary Get( char _Name );																// Retorna o sinal binário cujo nome é '_Name' (cajo não exista, um sinal binário nulo genérico é retornado)
 		uint8_t BitCount();																			// Conta a quantidade total de bits '0' e '1' no mintermo
-		uint8_t Diference( Minterm Mn );												// Retorna a quantidade de bits diferentes entre todos os sinais de dois mintermos
-		void RemoveDiference( Minterm Mn );											// Remove a diferença de bits entre todos os sinais de dois mintermos
+		uint32_t Bits();																				// Retorna a quantidade de bits diferentes de Dont Care
+		Minterm operator^( Minterm Mn );												// Retorna a quantidade de bits diferentes entre todos os sinais de dois mintermos
+		Minterm operator&( Minterm Mn );												// Remove a diferença de bits entre todos os sinais de dois mintermos
 };
 
 // -------------------------------------------------------------------------- //
@@ -189,24 +190,6 @@ uint8_t Binary::SetName( char _Name ){
 
 // -------------------------------------------------------------------------- //
 
-// Conta a quantidade de bits '0' e '1' representados
-void Binary::BitCount(){
-	uint32_t Nn, Nm;							// Nn representa um bit a ser analisado, Nm representa uma posição do vetor de inteiros
-
-	for( NumOf1 = 0, NumOf0 = 0, Nn = 1 ; Nn ; Nn = Nn << 1 ){
-		for( Nm = 0 ; Nm < MAX_VET ; Nm++ ){
-
-			if( Bits1[ Nm ] & Nn )		// Se há um bit positivo na representação de sinais '1' na posição Nn
-				NumOf1++;								// O contador de '1's é incrementado
-			if( Bits0[ Nm ] & Nn )		// Se há um bit positivo na representação de sinais '0' na posição Nn
-				NumOf0++;								// O contador de '0's é incrementado
-		}
-	}
-
-}
-
-// -------------------------------------------------------------------------- //
-
 // Muda o valor de um determinado bit dentro da representação do sinal (Val = BIT_0, BIT_1 ou BIT_X)
 uint8_t Binary::Set( uint32_t Pos, uint8_t Val ){
 	uint32_t Nm;
@@ -262,52 +245,62 @@ uint8_t Binary::Get( uint32_t Pos ){
 
 // -------------------------------------------------------------------------- //
 
-// Copia um sinal binário
-uint8_t Binary::Copy( Binary Bin ){
+// Conta a quantidade de bits '0' e '1' representados
+void Binary::BitCount(){
+	uint32_t Nn, Nm;							// Nn representa um bit a ser analisado, Nm representa uma posição do vetor de inteiros
 
-	memcpy( Bits1, Bin.Bits1, sizeof( Type ) * MAX_VET );
-	memcpy( Bits0, Bin.Bits0, sizeof( Type ) * MAX_VET );
-	NumOf1 = Bin.NumOf1;
-	NumOf0 = Bin.NumOf0;
-	Name = Bin.Name;
+	for( NumOf1 = 0, NumOf0 = 0, Nn = 1 ; Nn ; Nn = Nn << 1 ){
+		for( Nm = 0 ; Nm < MAX_VET ; Nm++ ){
 
-	return( 1 );
+			if( Bits1[ Nm ] & Nn )		// Se há um bit positivo na representação de sinais '1' na posição Nn
+				NumOf1++;								// O contador de '1's é incrementado
+			if( Bits0[ Nm ] & Nn )		// Se há um bit positivo na representação de sinais '0' na posição Nn
+				NumOf0++;								// O contador de '0's é incrementado
+		}
+	}
+
+}
+
+// -------------------------------------------------------------------------- //
+
+// Retorna a quantidade de bits diferentes de Dont Care
+uint32_t Binary::Bits(){
+
+	return( this->NumOf0 + this->NumOf1 );
 }
 
 // -------------------------------------------------------------------------- //
 
 // Calcula quantos bits de diferença há entre dois sinais binários
-uint8_t Binary::Diference( Binary Bin ){
-	uint32_t Nn, Nm, Nd;
-
-	Nn = 0;
+Binary Binary::operator^( Binary Bin ){
+	Binary N_Bin;
+	uint32_t Nm;
 
 	for( Nm = 0 ; Nm < MAX_VET ; Nm++ ){
-		Nd = ( this->Bits1[ Nm ] ^ Bin.Bits1[ Nm ] )
-			 | ( this->Bits0[ Nm ] ^ Bin.Bits0[ Nm ] );			// Operação de XOR revela quais bits são diferentes entre os sinais
-			 																								// O resultado da operação XOR representa com bits '1' cada posição cujos sinais se diferem
-		while( Nd ){																			// Enquanto houverem posições com bits '1' a serem analisadas
-			Nn += Nd & 1;																		// Pega apenas o bit menos significativo e incrementa o contador de diferenças se o bit for '1'
-			Nd >>= 1;																				// Desloca o resultado de XOR uma casa para a direita
-		}
+		N_Bin.Bits1[ Nm ] = this->Bits1[ Nm ] ^ Bin.Bits1[ Nm ];
+		N_Bin.Bits0[ Nm ] = ( this->Bits0[ Nm ] ^ Bin.Bits0[ Nm ] ) ^ N_Bin.Bits1[ Nm ];
 	}
+	N_Bin.Name = this->Name == '\0' ? Bin.Name : this->Name;
+	N_Bin.BitCount();
 
-	return( Nn );
+	return( N_Bin );
 }
 
 // -------------------------------------------------------------------------- //
 
 // Remove as diferenças entre as representações de dois sinais binários
-void Binary::RemoveDiference( Binary Bin ){
-	uint32_t Nd, Nm;
+Binary Binary::operator&( Binary Bin ){
+	Binary N_Bin;
+	uint32_t Nm;
 
 	for( Nm = 0 ; Nm < MAX_VET ; Nm++ ){
-		Nd = ~( ( this->Bits1[ Nm ] ^ Bin.Bits1[ Nm ] )
-		 		| ( this->Bits0[ Nm ] ^ Bin.Bits0[ Nm ] ) );	// Pega a diferença entre os sinais e inverte os bits
-
-		Bits1[ Nm ] &= Nd;																// Remove a diferença por meio de um AND com os bits invertidos
-		Bits0[ Nm ] &= Nd;
+		N_Bin.Bits1[ Nm ] = this->Bits1[ Nm ] & Bin.Bits1[ Nm ];
+		N_Bin.Bits0[ Nm ] = this->Bits0[ Nm ] & Bin.Bits0[ Nm ];
 	}
+	N_Bin.Name = this->Name == '\0' ? Bin.Name : this->Name;
+	N_Bin.BitCount();
+
+	return( N_Bin );
 }
 
 // ========================================================================== //
@@ -386,6 +379,9 @@ void Minterm::Insert( Binary Bin ){
 uint8_t Minterm::Set( Binary Bin ){
 	uint32_t Nn;
 
+	if( Bin.Name == '\0' )
+		return( 0 );
+
 	for( Nn = 0 ; Nn < Binaries.size() ; Nn++ ){		// Verifica se a classe de mintermos de nome _Name existe
 		if( Bin.Name == Binaries[ Nn ].Name ){				// Compara individualmente cada nome de cada sinal binário
 			Binaries[ Nn ] = Bin;
@@ -396,7 +392,7 @@ uint8_t Minterm::Set( Binary Bin ){
 
 	this->Insert( Bin );														// Se não existe, insere no final do vetor de Binaries
 	this->BitCount();
-	return( 0 );
+	return( 1 );
 }
 
 // -------------------------------------------------------------------------- //
@@ -405,6 +401,9 @@ uint8_t Minterm::Set( Binary Bin ){
 uint8_t Minterm::Set( char _Name, uint32_t Pos, uint8_t Val ){
 	Binary Bin;
 	uint32_t Nn;
+
+	if( _Name == '\0' )
+		return( 0 );
 
 	for( Nn = 0 ; Nn < Binaries.size() ; Nn++ ){		// Verifica se a classe de mintermos de nome _Name existe
 		Bin = Binaries[ Nn ];
@@ -463,10 +462,18 @@ uint8_t Minterm::BitCount(){
 
 // -------------------------------------------------------------------------- //
 
+// Retorna a quantidade de bits diferentes de Dont Care
+uint32_t Minterm::Bits(){
+
+	return( this->NumOf0 + this->NumOf1 );
+}
+
+// -------------------------------------------------------------------------- //
+
 // Retorna a quantidade de bits diferentes entre todos os sinais de dois mintermos
-uint8_t Minterm::Diference( Minterm Mn ){
+Minterm Minterm::operator^( Minterm Mn ){
 	Binary Bin1, Bin2;
-	uint32_t Nd;
+	Minterm Min;
 	char Nc;
 
 	for( Nc = 'A' ; Nc <= 'z' ; Nc++ ){				// Realiza uma busca passando por todos os nomes possíveis de sinais binários
@@ -477,17 +484,19 @@ uint8_t Minterm::Diference( Minterm Mn ){
 		Bin1 = this->Get( Nc );									// Procura por um sinal de nome Nc neste mintermo
 		Bin2 = Mn.Get( Nc );										// Procura por um sinal de nome Nc no mintermo passado por parâmetro
 
-		Nd += Bin1.Diference( Bin2 );						// Soma a diferença em bits de ambos os sinais à variável Nd
+		Min.Set( ( Bin1 ^ Bin2 ) );
 	}
+	Min.BitCount();
 
-	return( Nd );															// Retorna a soma total das diferenças
+	return( Min );														// Retorna o mintermo gerado pelas diferenças
 }
 
 // -------------------------------------------------------------------------- //
 
 // Remove a diferença de bits entre todos os sinais de dois mintermos
-void Minterm::RemoveDiference( Minterm Mn ){
+Minterm Minterm::operator&( Minterm Mn ){
 	Binary Bin1, Bin2;
+	Minterm Min;
 	char Nc;
 
 	for( Nc = 'A' ; Nc <= 'z' ; Nc++ ){				// Realiza uma busca passando por todos os nomes possíveis de sinais binários
@@ -498,11 +507,11 @@ void Minterm::RemoveDiference( Minterm Mn ){
 		Bin1 = this->Get( Nc );									// Procura por um sinal de nome Nc neste mintermo
 		Bin2 = Mn.Get( Nc );										// Procura por um sinal de nome Nc no mintermo passado por parâmetro
 
-		if( Bin1.Name != '\0' ){								// Se o sinal com nome Nc existe, ou seja, Minterm::Get não retornou um sinal com nome nulo
-			Bin1.RemoveDiference( Bin2 );					// Então é removida a diferença entre os dois sinais de nome NC
-			this->Set( Bin1 );										// O valor do sinal é atualizado neste mintermo
-		}
+		Min.Set( ( Bin1 & Bin2 ) );						// O valor do sinal é atualizado neste mintermo
 	}
+	Min.BitCount();
+
+	return( Min );
 }
 
 // ========================================================================== //
@@ -667,7 +676,7 @@ void McCluskey::RemoveRedundance(){
 		Min1 = Minterms[ Nn ];
 		for( Nm = Nn + 1 ; Nm < (int32_t)Minterms.size() ; Nm++ ){						// Para cada mintermo entre as posições Nm + 1 e a última posição do vetor
 			Min2 = Minterms[ Nm ];
-			if( Min1.Diference( Min2 ) == 0 ){																	// Verifica se a diferença entre ambos os mintermos é 0
+			if( ( Min1 ^ Min2 ).Bits() == 0 ){																	// Verifica se a diferença entre ambos os mintermos é 0
 				Minterms.erase( Minterms.begin() + Nm );													// Se sim, remove o segundo mintermo
 				Nm--;																															// E recua o contador do segundo mintermo em uma posição
 			}
@@ -698,10 +707,10 @@ void McCluskey::Reduce(){
 
 						#ifdef DEBUG
 						printf("Comparando [%d][%d]: ", Cls1, N1);		Mint1.Print();		printf(" com [%d][%d]: ", Cls2, N2);		Mint2.Print();			printf("\n");
-						printf("  -> Diferença = %d bits.\n", Mint1.Diference( Mint2 ) );
+						printf("  -> Diferença = %d bits.\n", ( Mint1 ^ Mint2 ).Bits() );
 						#endif
 
-						if( Mint1.Diference( Mint2 ) == 1 ){													// Verifica se a diferença entre os mintermos é de 1 bit
+						if( ( Mint1 ^ Mint2 ).Bits() == 1 ){													// Verifica se a diferença entre os mintermos é de 1 bit
 							#ifdef DEBUG
 							printf("\tGerando intersecção entre mintermos!!\n");
 							#endif
@@ -709,8 +718,8 @@ void McCluskey::Reduce(){
 							Mint1.State = Mint2.State = COMBINED_STATE;									// Se sim, muda o estado de ambos os mintermos para o estado combinado
 							Classes[ Cls1 ][ N1 ] = Mint1;															// Atualiza ambos os mintermos nas classes
 							Classes[ Cls2 ][ N2 ] = Mint2;
-							Mint2.RemoveDiference( Mint1 );															// Remove a diferença ente os mintermos
-							Temp.push_back( Mint2 );																		// E insere o mintermo diferenciado no vetor de novos mintermos
+
+							Temp.push_back( Mint1 & Mint2 );														// E insere o mintermo diferenciado no vetor de novos mintermos
 
 							Total++;																										// Soma o contador de reduções
 						}
