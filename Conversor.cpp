@@ -45,22 +45,23 @@ class Binary{
 	public:
 		Type Bits1[ MAX_VET ];	// Representações dos bits 1 do sinal (onde cada bit '1' no vetor representa um bit '1' no sinal binário)
 		Type Bits0[ MAX_VET ];	// Representações dos bits 0 do sinal (onde cada bit '1' no vetor representa um bit '0' no sinal binário)
-		Type NumOf1;						// Quantidade de bits 1 no sinal
-		Type NumOf0;						// Quantidade de bits 0 no sinal
+		uint32_t NumOf1;				// Quantidade de bits 1 no sinal
+		uint32_t NumOf0;				// Quantidade de bits 0 no sinal
 		char Name;							// Nome atribuido ao sinal
 
 	public:
 		Binary();
 		~Binary();
 
-		uint8_t Print();				// Imprime informações do mintermo
-		void Free();						// Reinicia o valor de cada variável do mintermo com valores nulos
+		void Create( char _Name );									// Cria um sinal binário com determinado nome
+		void Free();																// Reinicia o valor de cada variável do mintermo com valores nulos
 
-		uint8_t SetName( char _Name );							// Muda o nome do sinal binário
 		uint8_t Set( uint32_t Pos, uint8_t Val );		// Muda o valor de um determinado bit dentro da representação do sinal (Val = BIT_0, BIT_1 ou BIT_X)
 		uint8_t Get( uint32_t Pos );								// Retorna o valor de um determinado bit dentro da representação (Retorno = BIT_0, BIT_1 ou BIT_X)
 		void BitCount();														// Conta a quantidade de bits '0' e '1' representados
 		uint32_t Bits();														// Retorna a quantidade de bits diferentes de Dont Care
+
+		uint8_t operator[]( uint32_t Pos );					// Retorna o bit da posição Pos
 		Binary operator^( Binary Bin );							// Calcula quantos bits de diferença há entre dois sinais binários
 		Binary operator&( Binary Bin );							// Remove as diferenças entre as representações de dois sinais binários
 };
@@ -77,7 +78,8 @@ class Binary{
 class Minterm{
 	public:
 		std::vector<Binary> Binaries;		// Conjunto de sinais binários que representam o mintermo
-		uint32_t NumOf1, NumOf0;				// Número total de '0's e '1's em todos os sinais binários do mintermo
+		uint32_t NumOf1;								// Número total de '1's em todos os sinais binários do mintermo
+		uint32_t NumOf0;								// Número total de '0's em todos os sinais binários do mintermo
 		uint32_t State;									// Estado do mintermo (utilizado apenas nas funções de redução)
 
 	public:
@@ -88,12 +90,14 @@ class Minterm{
 		void Print();										// Imprime im mintermo
 		void Free();										// Reinicia o mintermo com valores nulos
 
-		void Insert( Binary Bin );															// Insere um novo sinal binário ao mintermo
-		uint8_t Set( Binary Bin );															// Procura por um sinal binário de mesmo nome que 'Bin' e o substitui por 'Bin' (caso não haja nenhum sinal de mesmo nome, 'Bin' é simplismente inserido ao mintermo)
+		uint8_t Insert( Binary Bin );														// Procura por um sinal binário de mesmo nome que 'Bin' e o substitui por 'Bin' (caso não haja nenhum sinal de mesmo nome, 'Bin' é simplismente inserido ao mintermo)
 		uint8_t Set( char _Name, uint32_t Pos, uint8_t Val );		// Similar à função de cima, porém, atualiza apenas um determinado bit do sinal binário de nome '_Name'
 		Binary Get( char _Name );																// Retorna o sinal binário cujo nome é '_Name' (cajo não exista, um sinal binário nulo genérico é retornado)
 		uint8_t BitCount();																			// Conta a quantidade total de bits '0' e '1' no mintermo
 		uint32_t Bits();																				// Retorna a quantidade de bits diferentes de Dont Care
+
+		Minterm operator<<( Binary Bin );												// Procura por um sinal binário de mesmo nome que 'Bin' e o substitui por 'Bin' (caso não haja nenhum sinal de mesmo nome, 'Bin' é simplismente inserido ao mintermo)
+		Binary operator[]( char Name );													// Retorna o sinal binário cujo nome é '_Name' (cajo não exista, um sinal binário nulo genérico é retornado)
 		Minterm operator^( Minterm Mn );												// Retorna a quantidade de bits diferentes entre todos os sinais de dois mintermos
 		Minterm operator&( Minterm Mn );												// Remove a diferença de bits entre todos os sinais de dois mintermos
 };
@@ -138,29 +142,11 @@ Binary::~Binary(){			this->Free();		}
 
 // -------------------------------------------------------------------------- //
 
-// Imprime informações do mintermo
-uint8_t Binary::Print(){
-	uint32_t Nn, Nm, Np, Nc;
+// Cria um sinal binário com determinado nome
+void Binary::Create( char _Name ){
 
-	for( Nm = 0 ; Nm < MAX_VET ; Nm++ ){
-		for( Nn = Nc = 0, Np = 1 ; Np ; Nn++, Np = Np << 1 ){
-			if( Bits1[ Nm ] & Np ){
-				if( Nc )
-					printf( "." );
-				printf( "%c%d", Name, Nn );
-				Nc++;
-			}
-
-			if( Bits0[ Nm ] & Np ){
-				if( Nc )
-					printf( "." );
-				printf( "!%c%d", Name, Nn );
-				Nc++;
-			}
-		}
-	}
-
-	return( 1 );
+	this->Free();
+	Name = _Name;
 }
 
 // -------------------------------------------------------------------------- //
@@ -170,22 +156,8 @@ void Binary::Free(){
 
 	memset( Bits1, 0, MAX_VET * sizeof( Type ) );
 	memset( Bits0, 0, MAX_VET * sizeof( Type ) );
-	NumOf1 = NumOf0= 0;
+	NumOf1 = NumOf0 = 0;
 	Name = '\0';
-}
-
-// -------------------------------------------------------------------------- //
-
-// Muda o nome do sinal binário
-uint8_t Binary::SetName( char _Name ){
-
-	if( IsLetter( _Name ) ){			// Apenas verifica se o nome atribuido é valido (um caractére)
-		Name = _Name;
-		return( 1 );
-	}
-
-	Name = '\0';									// Caso não seja, seu nome passa a ser nulo
-	return( 0 );
 }
 
 // -------------------------------------------------------------------------- //
@@ -224,20 +196,20 @@ uint8_t Binary::Set( uint32_t Pos, uint8_t Val ){
 
 // Retorna o valor de um determinado bit dentro da representação (Retorno = BIT_0, BIT_1 ou BIT_X)
 uint8_t Binary::Get( uint32_t Pos ){
-	uint32_t _Pos, Nm;
+	uint32_t Nm, Nn;
 
-	if( Pos > MAX_CLASS )		// Posição é maior que o máximo permitido
+	if( Pos > MAX_CLASS )					// Posição é maior que o máximo permitido
 		return( BIT_X );
 
 	Nm = Pos / MAX_BITS;
-	Pos = Pos % MAX_BITS;
+	Nn = Pos % MAX_BITS;
 
-	_Pos = 1 << Pos;
+	Pos = 1 << Nn;
 
-	if( Bits1[ Nm ] & _Pos )			// verifica se há algum bit '1' na posição pedida
+	if( Bits1[ Nm ] & Pos )				// verifica se há algum bit '1' na posição pedida
 		return( BIT_1 );
 
-	if( Bits0[ Nm ] & _Pos )			// verifica se há algum bit '0' na posição pedida
+	if( Bits0[ Nm ] & Pos )				// verifica se há algum bit '0' na posição pedida
 		return( BIT_0 );
 
 	return( BIT_X );
@@ -249,7 +221,8 @@ uint8_t Binary::Get( uint32_t Pos ){
 void Binary::BitCount(){
 	uint32_t Nn, Nm;							// Nn representa um bit a ser analisado, Nm representa uma posição do vetor de inteiros
 
-	for( NumOf1 = 0, NumOf0 = 0, Nn = 1 ; Nn ; Nn = Nn << 1 ){
+	NumOf1 = 0, NumOf0 = 0;
+	for( Nn = 1 ; Nn ; Nn = Nn << 1 ){
 		for( Nm = 0 ; Nm < MAX_VET ; Nm++ ){
 
 			if( Bits1[ Nm ] & Nn )		// Se há um bit positivo na representação de sinais '1' na posição Nn
@@ -258,7 +231,6 @@ void Binary::BitCount(){
 				NumOf0++;								// O contador de '0's é incrementado
 		}
 	}
-
 }
 
 // -------------------------------------------------------------------------- //
@@ -271,6 +243,14 @@ uint32_t Binary::Bits(){
 
 // -------------------------------------------------------------------------- //
 
+// Retorna o bit da posição Pos
+uint8_t Binary::operator[]( uint32_t Pos ){
+
+	return( this->Get( Pos ) );
+}
+
+// -------------------------------------------------------------------------- //
+
 // Calcula quantos bits de diferença há entre dois sinais binários
 Binary Binary::operator^( Binary Bin ){
 	Binary N_Bin;
@@ -278,7 +258,7 @@ Binary Binary::operator^( Binary Bin ){
 
 	for( Nm = 0 ; Nm < MAX_VET ; Nm++ ){
 		N_Bin.Bits1[ Nm ] = this->Bits1[ Nm ] ^ Bin.Bits1[ Nm ];
-		N_Bin.Bits0[ Nm ] = ( this->Bits0[ Nm ] ^ Bin.Bits0[ Nm ] ) ^ N_Bin.Bits1[ Nm ];
+		N_Bin.Bits0[ Nm ] = ( this->Bits0[ Nm ] ^ Bin.Bits0[ Nm ] ) & ~( N_Bin.Bits1[ Nm ] );
 	}
 	N_Bin.Name = this->Name == '\0' ? Bin.Name : this->Name;
 	N_Bin.BitCount();
@@ -368,15 +348,7 @@ void Minterm::Free(){
 // -------------------------------------------------------------------------- //
 
 // Insere um novo sinal binário ao mintermo
-void Minterm::Insert( Binary Bin ){
-
-	Binaries.push_back( Bin );
-}
-
-// -------------------------------------------------------------------------- //
-
-// Procura por um sinal binário de mesmo nome que 'Bin' e o substitui por 'Bin' (caso não haja nenhum sinal de mesmo nome, 'Bin' é simplismente inserido ao mintermo)
-uint8_t Minterm::Set( Binary Bin ){
+uint8_t Minterm::Insert( Binary Bin ){
 	uint32_t Nn;
 
 	if( Bin.Name == '\0' )
@@ -390,8 +362,9 @@ uint8_t Minterm::Set( Binary Bin ){
 		}
 	}
 
-	this->Insert( Bin );														// Se não existe, insere no final do vetor de Binaries
+	Binaries.push_back( Bin );											// Se não existe, insere no final do vetor de Binaries
 	this->BitCount();
+
 	return( 1 );
 }
 
@@ -415,9 +388,9 @@ uint8_t Minterm::Set( char _Name, uint32_t Pos, uint8_t Val ){
 		}
 	}
 
-	Bin.Free();																			// Se não existe, ela é criada
-	Bin.SetName( _Name );
+	Bin.Create( _Name );														// Se não existe, ela é criada
 	Bin.Set( Pos, Val );
+
 	Binaries.push_back( Bin );
 	this->BitCount();
 
@@ -470,6 +443,23 @@ uint32_t Minterm::Bits(){
 
 // -------------------------------------------------------------------------- //
 
+// Procura por um sinal binário de mesmo nome que 'Bin' e o substitui por 'Bin' (caso não haja nenhum sinal de mesmo nome, 'Bin' é simplismente inserido ao mintermo)
+Minterm Minterm::operator<<( Binary Bin ){
+
+	this->Insert( Bin );
+	return( *this );
+}
+
+// -------------------------------------------------------------------------- //
+
+// Retorna o sinal binário cujo nome é '_Name' (cajo não exista, um sinal binário nulo genérico é retornado)
+Binary Minterm::operator[]( char Name ){
+
+	return( this->Get( Name ) );
+}
+
+// -------------------------------------------------------------------------- //
+
 // Retorna a quantidade de bits diferentes entre todos os sinais de dois mintermos
 Minterm Minterm::operator^( Minterm Mn ){
 	Binary Bin1, Bin2;
@@ -481,10 +471,10 @@ Minterm Minterm::operator^( Minterm Mn ){
 		if( ( Nc > 'Z' ) && ( Nc < 'a' ) )			// Apenas avança o intervalo entre 'Z' e 'a'
 			Nc = 'a';
 
-		Bin1 = this->Get( Nc );									// Procura por um sinal de nome Nc neste mintermo
-		Bin2 = Mn.Get( Nc );										// Procura por um sinal de nome Nc no mintermo passado por parâmetro
+		Bin1 = (*this)[ Nc ];										// Procura por um sinal de nome Nc neste mintermo
+		Bin2 = Mn[ Nc ];												// Procura por um sinal de nome Nc no mintermo passado por parâmetro
 
-		Min.Set( ( Bin1 ^ Bin2 ) );
+		Min << ( Bin1 ^ Bin2 );
 	}
 	Min.BitCount();
 
@@ -504,10 +494,10 @@ Minterm Minterm::operator&( Minterm Mn ){
 		if( ( Nc > 'Z' ) && ( Nc < 'a' ) )			// Apenas avança o intervalo entre 'Z' e 'a'
 			Nc = 'a';
 
-		Bin1 = this->Get( Nc );									// Procura por um sinal de nome Nc neste mintermo
-		Bin2 = Mn.Get( Nc );										// Procura por um sinal de nome Nc no mintermo passado por parâmetro
+		Bin1 = (*this)[ Nc ];										// Procura por um sinal de nome Nc neste mintermo
+		Bin2 = Mn[ Nc ];												// Procura por um sinal de nome Nc no mintermo passado por parâmetro
 
-		Min.Set( ( Bin1 & Bin2 ) );						// O valor do sinal é atualizado neste mintermo
+		Min << ( Bin1 & Bin2 );									// O valor do sinal é atualizado neste mintermo
 	}
 	Min.BitCount();
 

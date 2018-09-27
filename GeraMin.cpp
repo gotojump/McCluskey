@@ -1,3 +1,9 @@
+/*
+
+	EM CONSTRUÇÂO!!!
+
+*/
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <iostream>
