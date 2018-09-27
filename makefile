@@ -2,6 +2,7 @@
 	main = Conversor
 	gen = GeraMin
 	flags = -Wall -Wextra -g
+	in = Minterms.min
 
 all: clean comp
 
@@ -16,6 +17,9 @@ generate: generator
 
 comp: $(main).cpp
 	$(CC) $(flags) $(main).cpp -o $(main)
+
+exec:
+	./$(main) $(in)
 
 git_init:
 	git init
